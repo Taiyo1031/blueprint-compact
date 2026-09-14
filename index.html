@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Convert Unreal Engine Blueprint clipboard text into compact JSON or readable Markdown, entirely in your browser."
+      content="Convert Unreal Engine Blueprint, Material and PCG nodes into JSON or Markdown, entirely in your browser."
     >
     <meta name="color-scheme" content="light">
     <title>Blueprint Compact</title>
@@ -39,10 +39,10 @@
     <main class="app-shell">
       <section id="empty-state" class="empty-state" aria-labelledby="empty-title">
         <div class="section-intro">
-          <p class="eyebrow">UNREAL ENGINE BLUEPRINT</p>
+          <p class="eyebrow">BLUEPRINT / MATERIAL / PCG</p>
           <h1 id="empty-title">
-            <span data-i18n-lang="ja">Blueprintを変換する</span>
-            <span data-i18n-lang="en">Convert Blueprint</span>
+            <span data-i18n-lang="ja">ノードをAIに伝える</span>
+            <span data-i18n-lang="en">Make your nodes AI-ready</span>
           </h1>
           <p class="intro-copy">
             <span data-i18n-lang="ja">Unreal Engine でノードをコピーして、下のボタンを押してください。<br>変換結果は自動でクリップボードに保存されます。</span>
@@ -99,8 +99,7 @@
           <div>
             <p class="eyebrow">UNREAL ENGINE BLUEPRINT</p>
             <h1 id="result-title">
-              <span data-i18n-lang="ja">Blueprint を検出</span>
-              <span data-i18n-lang="en">Blueprint detected</span>
+              <span id="detected-kind">Nodes detected</span>
             </h1>
           </div>
           <p class="graph-counts" aria-live="polite">
@@ -115,8 +114,8 @@
         <div class="repeat-action">
           <button id="repeat-convert-button" class="convert-cta" type="button">
             <span class="convert-default">
-              <span data-i18n-lang="ja">別のBlueprintを変換してコピー</span>
-              <span data-i18n-lang="en">Convert and copy another Blueprint</span>
+              <span data-i18n-lang="ja">次のノードを変換してコピー</span>
+              <span data-i18n-lang="en">Convert and copy the next nodes</span>
             </span>
             <span class="convert-feedback">
               <span data-i18n-lang="ja">変換してコピーしました</span>
@@ -196,8 +195,8 @@
           <section class="disclosure">
             <button class="disclosure-button" type="button" aria-expanded="false" aria-controls="source-panel">
               <span>
-                <span data-i18n-lang="ja">元のBlueprint</span>
-                <span data-i18n-lang="en">Source Blueprint</span>
+                <span data-i18n-lang="ja">元のノードデータ</span>
+                <span data-i18n-lang="en">Source node data</span>
               </span>
               <span class="disclosure-symbol" aria-hidden="true">+</span>
             </button>
@@ -222,6 +221,7 @@
                 </legend>
                 <label><input type="checkbox" data-setting="includeNodeName"> <span data-i18n-lang="ja">ノード名</span><span data-i18n-lang="en">Node Name</span></label>
                 <label><input type="checkbox" data-setting="includeNodeType"> <span data-i18n-lang="ja">ノードタイプ</span><span data-i18n-lang="en">Node Type</span></label>
+                <label><input type="checkbox" data-setting="includeNodeProperties"> <span data-i18n-lang="ja">Material・PCG等の内部設定</span><span data-i18n-lang="en">Internal settings (Material, PCG, etc.)</span></label>
                 <label><input type="checkbox" data-setting="includeComments"> <span data-i18n-lang="ja">コメント</span><span data-i18n-lang="en">Comments</span></label>
                 <label><input type="checkbox" data-setting="includePosition"> <span data-i18n-lang="ja">位置</span><span data-i18n-lang="en">Position</span></label>
                 <label><input type="checkbox" data-setting="includeGuid"> <span data-i18n-lang="ja">GUID</span><span data-i18n-lang="en">GUID</span></label>
@@ -236,7 +236,7 @@
                 <label><input type="checkbox" data-setting="includePinType"> <span data-i18n-lang="ja">ピンタイプ</span><span data-i18n-lang="en">Pin Type</span></label>
                 <label><input type="checkbox" data-setting="includeDefaultValue"> <span data-i18n-lang="ja">デフォルト値</span><span data-i18n-lang="en">Default Value</span></label>
                 <label><input type="checkbox" data-setting="includeExecConnections"> <span data-i18n-lang="ja">実行接続</span><span data-i18n-lang="en">Execution Connections</span></label>
-                <label><input type="checkbox" data-setting="includeDataConnections"> <span data-i18n-lang="ja">データ接続</span><span data-i18n-lang="en">Data Connections</span></label>
+                <label><input type="checkbox" data-setting="includeDataConnections"> <span data-i18n-lang="ja">データ接続・PCG依存関係</span><span data-i18n-lang="en">Data &amp; PCG Dependency Connections</span></label>
                 <label><input type="checkbox" data-setting="includeAiInstructions"> <span data-i18n-lang="ja">AI向け説明文</span><span data-i18n-lang="en">AI Context</span></label>
               </fieldset>
             </div>
@@ -246,8 +246,8 @@
 
       <p id="app-message" class="inline-message" role="alert" aria-live="assertive" hidden></p>
       <p class="privacy-note">
-        <span data-i18n-lang="ja">Blueprint の内容は保存・送信しません。</span>
-        <span data-i18n-lang="en">Blueprint content is not stored or uploaded.</span>
+        <span data-i18n-lang="ja">ノードの内容は保存・送信しません。</span>
+        <span data-i18n-lang="en">Node content is not stored or uploaded.</span>
       </p>
     </main>
   </body>

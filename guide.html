@@ -52,7 +52,7 @@
           <article class="usage-step">
             <span class="step-number">01</span>
             <h3><span data-i18n-lang="ja">ノードをコピー</span><span data-i18n-lang="en">Copy nodes</span></h3>
-            <p><span data-i18n-lang="ja">Unreal EngineのBlueprintで、変換したいノードを選択して<kbd>Ctrl + C</kbd>。</span><span data-i18n-lang="en">In an Unreal Engine Blueprint, select the nodes you want and press <kbd>Ctrl + C</kbd>.</span></p>
+            <p><span data-i18n-lang="ja">Unreal EngineのBlueprint・Material・PCGで、変換したいノードを選択して<kbd>Ctrl + C</kbd>。種類は自動で判別します。</span><span data-i18n-lang="en">Select nodes in an Unreal Engine Blueprint, Material, or PCG graph and press <kbd>Ctrl + C</kbd>. The graph type is detected automatically.</span></p>
           </article>
           <article class="usage-step">
             <span class="step-number">02</span>
@@ -81,8 +81,8 @@
           </h2>
         </div>
         <p class="section-copy">
-          <span data-i18n-lang="ja">Blueprintの元データをそのまま送信するのではなく、ブラウザ内で順番に処理しています。</span>
-          <span data-i18n-lang="en">The original Blueprint data is processed step by step inside your browser instead of being uploaded.</span>
+          <span data-i18n-lang="ja">ノードの元データはブラウザ内で処理します。MaterialのExpressionやPCGのSettingsなど、入れ子の情報も所有するノードごとに整理します。</span>
+          <span data-i18n-lang="en">Node data is processed inside your browser. Nested Material expressions and PCG settings are organized under their owning nodes.</span>
         </p>
 
         <div class="flow-diagram" role="img" aria-label="Unreal Engine to clipboard, parser, filter, exporter, then clipboard and preview">
@@ -98,7 +98,7 @@
             <rect x="602" y="58" width="150" height="90"></rect>
             <rect x="796" y="58" width="144" height="90"></rect>
             <text x="95" y="96">UNREAL ENGINE</text>
-            <text x="95" y="120"><tspan data-i18n-lang="ja">Blueprintノード</tspan><tspan data-i18n-lang="en">Blueprint</tspan></text>
+            <text x="95" y="120"><tspan data-i18n-lang="ja">コピーしたノード</tspan><tspan data-i18n-lang="en">Copied nodes</tspan></text>
             <text x="289" y="96">CLIPBOARD</text>
             <text x="289" y="120"><tspan data-i18n-lang="ja">テキスト読み取り</tspan><tspan data-i18n-lang="en">Read text</tspan></text>
             <text x="483" y="96">PARSER</text>
@@ -121,17 +121,34 @@
         </div>
       </section>
 
+      <section class="guide-section" aria-labelledby="guide-support-title">
+        <div class="guide-section-heading">
+          <p class="eyebrow">03 / SUPPORTED GRAPHS</p>
+          <h2 id="guide-support-title"><span data-i18n-lang="ja">対応範囲と注意点</span><span data-i18n-lang="en">Support and limitations</span></h2>
+        </div>
+        <div class="process-list">
+          <article class="process-row"><span class="step-number">BP</span><div><h3>Blueprint</h3><p><span data-i18n-lang="ja">ノード・ピン・デフォルト値と、実行線・データ線を整理します。</span><span data-i18n-lang="en">Extracts nodes, pins, defaults, execution wires, and data wires.</span></p></div></article>
+          <article class="process-row"><span class="step-number">MAT</span><div><h3>Material / Material Function</h3><p><span data-i18n-lang="ja">Expression、パラメータ、テクスチャ・関数の参照と接続を抽出。Named Rerouteの宣言先は、線とは別のreferencesに残します。</span><span data-i18n-lang="en">Extracts expressions, parameters, texture/function references, and wires. Named Reroute declarations are recorded in references, separately from pin wires.</span></p></div></article>
+          <article class="process-row"><span class="step-number">PCG</span><div><h3>PCG</h3><p><span data-i18n-lang="ja">入出力・接続・Settings・ユーザーパラメータを抽出。内部のMesh Selector等も階層付きで残します。依存関係はdependencyとして区別します。</span><span data-i18n-lang="en">Extracts inputs, outputs, wires, settings, and user parameters. Nested components such as mesh selectors retain their hierarchy. Dependency-only wires are marked as dependency.</span></p></div></article>
+        </div>
+        <div class="guide-note">
+          <strong><span data-i18n-lang="ja">コピー範囲の要約です</span><span data-i18n-lang="en">A summary of your selection</span></strong>
+          <span data-i18n-lang="ja">参照先アセットの内部や、コピーに含まれない既定値は取得できません。設定値はUnrealのテキスト表記で保持します。完全保存やUnrealへの再貼り付け用ではありません。Niagara等はピン付きテキストの汎用抽出のみで、未検証の警告を表示します。対応済みの種類でもエンジンのバージョンやノードによって差があります。</span>
+          <span data-i18n-lang="en">Referenced asset internals and defaults absent from the clipboard are unavailable. Property values retain Unreal's serialized text syntax. This is not a lossless backup or a format for pasting back into Unreal. Niagara and other graph types only use generic extraction of pin-based text, with an unverified warning. Engine versions and node types may vary even for supported graphs.</span>
+        </div>
+      </section>
+
       <section class="guide-section privacy-guide" aria-labelledby="guide-privacy-title">
         <div class="guide-section-heading">
-          <p class="eyebrow">03 / PRIVACY</p>
+          <p class="eyebrow">04 / PRIVACY</p>
           <h2 id="guide-privacy-title">
             <span data-i18n-lang="ja">データの扱い</span>
             <span data-i18n-lang="en">Data handling</span>
           </h2>
         </div>
         <p class="section-copy">
-          <span data-i18n-lang="ja">Blueprintの内容はサーバーへ送信せず、保存もしません。変換中は現在のページのメモリ上だけで扱います。言語や設定だけは、この端末のlocalStorageに保存されます。</span>
-          <span data-i18n-lang="en">Blueprint content is not uploaded or saved. During conversion it exists only in the current page memory. Only language and interface settings are saved in this device's localStorage.</span>
+          <span data-i18n-lang="ja">ノードの内容はサーバーへ送信せず、保存もしません。変換中は現在のページのメモリ上だけで扱います。言語や設定だけは、この端末のlocalStorageに保存されます。</span>
+          <span data-i18n-lang="en">Node content is not uploaded or saved. During conversion it exists only in the current page memory. Only language and interface settings are saved in this device's localStorage.</span>
         </p>
         <a class="back-link" href="./">
           <span data-i18n-lang="ja">変換ページへ戻る →</span>

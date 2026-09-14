@@ -28,7 +28,7 @@
   }
 
   function parseAssignments(source) {
-    const values = {};
+    const values = Object.create(null);
     let cursor = 0;
 
     while (cursor < source.length) {
@@ -95,7 +95,76 @@
       }
     }
 
+    if (depth !== 0) throw new Error("INCOMPLETE_GRAPH");
     return blocks;
+  }
+
+  // UE emits a declaration followed by a value block for the same child.
+  // Merge by name within each owner, never across unrelated editor nodes.
+  function objectTree(lines) {
+    const container = { children: [] };
+    const stack = [container];
+    for (const line of lines) {
+      const text = line.trim();
+      if (/^Begin Object\b/.test(text)) {
+        const name = (text.match(/\bName="([^"]+)"/) || [])[1] || "Object";
+        const classPath = (text.match(/\bClass=([^\s]+)/) || [])[1] || "";
+        const exportPath = (text.match(/\bExportPath="([^"]+)"/) || [])[1] || "";
+        const parent = stack[stack.length - 1];
+        let object = parent.children.find((child) => child.name === name);
+        if (!object) {
+          object = { name, classPath, exportPath, properties: Object.create(null), children: [], pinLines: [] };
+          parent.children.push(object);
+        }
+        if (classPath) object.classPath = classPath;
+        if (exportPath) object.exportPath = exportPath;
+        stack.push(object);
+      } else if (/^End Object\b/.test(text)) {
+        stack.pop();
+      } else {
+        const object = stack[stack.length - 1];
+        if (text.startsWith("CustomProperties Pin")) object.pinLines.push(text);
+        else {
+          const match = text.match(/^([A-Za-z_][A-Za-z0-9_.]*(?:\(\d+\))?)=(.*)$/);
+          if (match && object.properties) object.properties[match[1]] = match[2].trim();
+        }
+      }
+    }
+    return container.children[0];
+  }
+
+  function graphType(classPath) {
+    if (/MaterialGraphNode/.test(classPath)) return "Material";
+    if (/PCGEditorGraph/.test(classPath)) return "PCG";
+    if (/K2Node_|BlueprintGraph|EdGraphNode_Comment/.test(classPath)) return "Blueprint";
+    if (/Niagara/.test(classPath)) return "Niagara";
+    return "Unknown";
+  }
+
+  function walkObjects(object) {
+    return [object, ...object.children.flatMap(walkObjects)];
+  }
+
+  function referenceName(value) {
+    return decodeValue(value).replace(/'$/, "").split(/[.']/).pop();
+  }
+
+  function semanticProperties(properties) {
+    return Object.fromEntries(Object.entries(properties)
+      .filter(([key]) => !/^(?:NodePos[XY]|Position[XY]|MaterialExpressionEditor[XY]|NodeGuid|MaterialExpressionGuid|NodeComment|Material|GraphNode|MaterialExpression|PCGNode|bCanRenameNode|bCommentBubbleVisible|bCommentBubblePinned|CachedOverridableParams(?:\(\d+\))?)$/.test(key))
+      .map(([key, value]) => [key, decodeValue(value)]));
+  }
+
+  function semanticObject(object) {
+    // PCGEdge duplicates editor pin links; PCGPin metadata is kept without edges.
+    return {
+      name: object.name,
+      class: object.classPath || "Unknown",
+      properties: semanticProperties(object.properties),
+      ...(object.children.some((child) => !/\.PCGEdge$/.test(child.classPath)) ? {
+        objects: object.children.filter((child) => !/\.PCGEdge$/.test(child.classPath)).map(semanticObject),
+      } : {}),
+    };
   }
 
   function quotedParts(value) {
@@ -187,7 +256,7 @@
     const friendly = fields.PinFriendlyName;
     if (friendly) {
       const parts = quotedParts(friendly);
-      if (parts.length) return parts[parts.length - 1];
+      if (parts.length && parts[parts.length - 1].trim()) return parts[parts.length - 1];
     }
 
     const rawName = decodeValue(fields.PinName || "");
@@ -231,25 +300,41 @@
   }
 
   function parseNodeBlock(lines, index) {
-    const header = lines[0].trim();
-    const classMatch = header.match(/\bClass=([^\s]+(?:'[^']*')?)/);
-    const nameMatch = header.match(/\bName="([^"]+)"/);
-    const classPath = classMatch ? classMatch[1] : "K2Node_Unknown";
-    const rawName = nameMatch ? nameMatch[1] : `Node_${index}`;
-    const properties = {};
+    const object = objectTree(lines);
+    const classPath = object.classPath;
+    const rawName = object.name;
+    const properties = object.properties;
+    const kind = graphType(classPath);
+    const descendants = walkObjects(object).slice(1);
+    const expression = object.children.find((child) => child.name === referenceName(properties.MaterialExpression));
+    const pcgNode = object.children.find((child) => child.name === referenceName(properties.PCGNode));
+    const settings = pcgNode?.children.find((child) => child.name === referenceName(pcgNode.properties.SettingsInterface));
+    const implementation = expression || settings;
     const pins = [];
     let malformedPins = 0;
 
-    for (const line of lines.slice(1, -1)) {
-      if (line.includes("CustomProperties Pin")) {
+    for (const line of object.pinLines) {
         const pin = parsePin(line);
-        if (pin) pins.push(pin);
+        if (pin) {
+          if (kind !== "Blueprint") {
+            pin.name = pin.rawName || pin.name;
+            if (kind === "Material") {
+              pin.type = "unspecified";
+              pin.requirement = /^(required|optional)$/.test(pin.category) ? pin.category : undefined;
+            }
+            if (kind === "PCG") {
+              const internalPin = descendants.find((child) => /\.PCGPin$/.test(child.classPath) &&
+                decodeValue(parseAssignments(stripOuterParentheses(child.properties.Properties)).Label) === pin.rawName);
+              if (internalPin) {
+                const info = parseAssignments(stripOuterParentheses(internalPin.properties.Properties));
+                if (info.AllowedTypes) pin.type = decodeValue(info.AllowedTypes);
+                if (info.Usage === "DependencyOnly") pin.category = "dependency";
+              }
+            }
+          }
+          pins.push(pin);
+        }
         else malformedPins += 1;
-        continue;
-      }
-
-      const propertyMatch = line.trim().match(/^([A-Za-z][A-Za-z0-9_]*)=(.*)$/);
-      if (propertyMatch) properties[propertyMatch[1]] = propertyMatch[2].trim();
     }
 
     const positionX = Number.parseInt(decodeValue(properties.NodePosX || "0"), 10);
@@ -258,8 +343,11 @@
     return {
       id: `N${index}`,
       rawName,
-      name: displayNodeName(classPath, properties),
-      type: displayNodeType(classPath),
+      name: implementation ? decodeValue(implementation.properties.ParameterName || implementation.properties.PropertyName ||
+        implementation.properties.OutputName || implementation.properties.InputName || implementation.properties.Name ||
+        pcgNode?.properties.NodeTitle || "") || humanize(shortClassName(implementation.classPath).replace(/^MaterialExpression|^PCG|Settings$/g, "")) : displayNodeName(classPath, properties),
+      type: implementation ? humanize(shortClassName(implementation.classPath).replace(/^MaterialExpression|^PCG|Settings$/g, "")) : displayNodeType(classPath),
+      graphType: kind,
       class: shortClassName(classPath),
       classPath,
       position: {
@@ -267,10 +355,16 @@
         y: Number.isFinite(positionY) ? positionY : 0,
       },
       guid: decodeValue(properties.NodeGuid || ""),
-      comment: decodeValue(properties.NodeComment || ""),
+      comment: decodeValue(properties.NodeComment || expression?.properties.Text || ""),
       pins,
       malformedPins,
-      exportPath: decodeValue(properties.ExportPath || ""),
+      exportPath: object.exportPath,
+      ...(kind !== "Blueprint" ? {
+        properties: semanticProperties(properties),
+        objects: object.children.map(semanticObject),
+        objectNames: descendants.map((child) => child.name),
+        declaration: expression?.properties.Declaration || "",
+      } : {}),
     };
   }
 
@@ -288,7 +382,7 @@
     const nodesByName = new Map(nodes.map((node) => [node.rawName, node]));
     const pinsById = new Map();
     for (const node of nodes) {
-      for (const pin of node.pins) pinsById.set(pin.id, { node, pin });
+      for (const pin of node.pins) pinsById.set(`${node.rawName}:${pin.id}`, { node, pin });
     }
 
     const connections = [];
@@ -298,13 +392,13 @@
     for (const node of nodes) {
       for (const pin of node.pins) {
         for (const reference of linkedReferences(pin.linkedTo)) {
-          const target = pinsById.get(reference.pinId);
+          const target = pinsById.get(`${reference.nodeName}:${reference.pinId}`);
           if (!target || (reference.nodeName && !nodesByName.has(reference.nodeName))) {
             unresolvedLinks += 1;
             continue;
           }
 
-          const pairKey = [pin.id, target.pin.id].sort().join(":");
+          const pairKey = [`${node.id}:${pin.id}`, `${target.node.id}:${target.pin.id}`].sort().join(":");
           if (seen.has(pairKey)) continue;
           seen.add(pairKey);
 
@@ -318,13 +412,29 @@
           connections.push({
             from: { node: from.node.id, pin: from.pin.name, pinId: from.pin.id },
             to: { node: to.node.id, pin: to.pin.name, pinId: to.pin.id },
-            type: pin.category === "exec" || target.pin.category === "exec" ? "execution" : "data",
+            type: pin.category === "exec" || target.pin.category === "exec" ? "execution" :
+              pin.category === "dependency" || target.pin.category === "dependency" ? "dependency" : "data",
           });
         }
       }
     }
 
     return { connections, unresolvedLinks };
+  }
+
+  function resolveMaterialReferences(nodes) {
+    const references = [];
+    let unresolved = 0;
+    for (const node of nodes) {
+      if (!node.declaration || decodeValue(node.declaration) === "None") continue;
+      const path = decodeValue(node.declaration).split("'")[1] || "";
+      const target = nodes.find((candidate) => candidate.graphType === "Material" &&
+        candidate.objectNames?.some((name) => path === `${candidate.rawName}.${name}` ||
+          path.endsWith(`.${candidate.rawName}.${name}`)));
+      references.push({ from: node.id, to: target?.id || null, property: "Declaration", target: decodeValue(node.declaration) });
+      if (!target) unresolved += 1;
+    }
+    return { references, unresolved };
   }
 
   function inferGraphName(nodes) {
@@ -340,7 +450,7 @@
     return (
       typeof text === "string" &&
       /Begin Object\s+Class=/m.test(text) &&
-      (/K2Node_/m.test(text) || /CustomProperties\s+Pin\s*\(/m.test(text))
+      (/K2Node_|MaterialGraphNode|PCGEditorGraph|EdGraphNode_Comment/m.test(text) || /CustomProperties\s+Pin\s*\(/m.test(text))
     );
   }
 
@@ -352,13 +462,18 @@
     const blocks = extractObjectBlocks(text);
     const nodeBlocks = blocks.filter((block) => {
       const header = block[0] || "";
-      return /\bClass=.*(?:K2Node_|EdGraphNode_Comment|BlueprintGraph)/.test(header);
+      return /\bClass=.*(?:K2Node_|EdGraphNode_Comment|BlueprintGraph|MaterialGraphNode|PCGEditorGraph)/.test(header) ||
+        objectTree(block).pinLines.length > 0;
     });
 
     if (!nodeBlocks.length) throw new Error("NO_NODES");
 
     const nodes = nodeBlocks.map((block, index) => parseNodeBlock(block, index));
     const { connections, unresolvedLinks } = resolveConnections(nodes);
+    const { references, unresolved } = resolveMaterialReferences(nodes);
+    const graphTypes = [...new Set(nodes.map((node) => node.graphType))];
+    const kind = graphTypes.length === 1 ? graphTypes[0] : "Mixed";
+    const genericNodes = nodes.filter((node) => !["Blueprint", "Material", "PCG"].includes(node.graphType)).length;
     const pinCount = nodes.reduce((total, node) => total + node.pins.length, 0);
     const malformedPins = nodes.reduce((total, node) => total + node.malformedPins, 0);
 
@@ -368,11 +483,18 @@
         nodeCount: nodes.length,
         pinCount,
         connectionCount: connections.length,
-        warningCount: malformedPins + unresolvedLinks,
+        warningCount: malformedPins + unresolvedLinks + unresolved + genericNodes + blocks.length - nodeBlocks.length,
+        unresolvedLinks,
+        unresolvedReferences: unresolved,
+        genericNodes,
+        skippedObjects: blocks.length - nodeBlocks.length,
+        graphType: kind,
+        referenceCount: references.length,
         graphName: inferGraphName(nodes),
       },
       nodes,
       connections,
+      references,
     };
   }
 

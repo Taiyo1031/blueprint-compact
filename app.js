@@ -7,6 +7,7 @@
   const defaultSettings = {
     includeNodeName: true,
     includeNodeType: true,
+    includeNodeProperties: true,
     includeComments: true,
     includePosition: false,
     includeGuid: false,
@@ -20,6 +21,7 @@
 
   const presets = {
     compact: {
+      includeNodeProperties: true,
       includeNodeName: false,
       includeNodeType: true,
       includeComments: false,
@@ -171,6 +173,10 @@
     const reduction = sourceSize ? (1 - resultSize / sourceSize) * 100 : 0;
 
     elements.nodeCount.textContent = state.graph.metadata.nodeCount;
+    document.getElementById("detected-kind").textContent = translatedMessage(
+      `${state.graph.metadata.graphType} ノードを検出`,
+      `${state.graph.metadata.graphType} nodes detected`
+    );
     elements.pinCount.textContent = state.graph.metadata.pinCount;
     elements.connectionCount.textContent = state.graph.metadata.connectionCount;
     elements.sourceSize.textContent = formatBytes(sourceSize);
@@ -231,8 +237,8 @@
       return;
     }
     elements.parseWarning.textContent = translatedMessage(
-      `${state.graph.metadata.nodeCount}ノードを検出しました。${count}件の参照を完全には解析できませんでした。`,
-      `${state.graph.metadata.nodeCount} nodes detected. ${count} references could not be fully parsed.`
+      `${state.graph.metadata.nodeCount}ノードを検出しました。確認事項 ${count}件：未解決の接続・参照、未検証の汎用ノード、または読み取り対象外のオブジェクトがあります。部分コピーや未対応形式の可能性があります。出力のmetadataも確認してください。`,
+      `${state.graph.metadata.nodeCount} nodes detected with ${count} warnings: unresolved links/references, unverified generic nodes, or skipped objects. This may be a partial selection or unsupported format. Check the output metadata.`
     );
     elements.parseWarning.hidden = false;
   }
@@ -268,8 +274,8 @@
       return true;
     } catch (_error) {
       showMessage(
-        "Blueprintノードを認識できませんでした。Unreal Engineでノードをコピーしてから貼り付けてください。",
-        "Blueprint nodes could not be detected. Copy nodes in Unreal Engine and paste them again."
+        "ノードを読み取れませんでした。Unreal EngineのBlueprint・Material・PCGでノードをコピーし、途切れていないテキストを貼り付けてください。",
+        "Could not read the nodes. Copy nodes from an Unreal Engine Blueprint, Material, or PCG graph and paste the complete text."
       );
       return false;
     }
@@ -289,7 +295,7 @@
       if (!text.trim()) {
         showMessage(
           "クリップボードが空です。Unreal Engineでノードをコピーしてください。",
-          "The clipboard is empty. Copy Blueprint nodes in Unreal Engine first."
+          "The clipboard is empty. Copy nodes in Unreal Engine first."
         );
         return;
       }
