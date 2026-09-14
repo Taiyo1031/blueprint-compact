@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ja" data-language="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Convert Unreal Engine Blueprint clipboard text into compact JSON or readable Markdown, entirely in your browser."
+    >
+    <meta name="color-scheme" content="light">
+    <title>Blueprint Compact</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='white'/%3E%3Cpath d='M7 7h7v7H7zm11 11h7v7h-7zM14 10h4v2h-4zm4 2h2v6h-2z' fill='black'/%3E%3Crect x='1' y='1' width='30' height='30' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E"
+    >
+    <link rel="stylesheet" href="style.css">
+    <script src="parser.js" defer></script>
+    <script src="exporter.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="wordmark" href="./" aria-label="Blueprint Compact home">Blueprint Compact</a>
+        <div class="language-switch" role="group" aria-label="Language">
+          <button type="button" class="language-button" data-language-button="ja" aria-pressed="true">日本語</button>
+          <button type="button" class="language-button" data-language-button="en" aria-pressed="false">English</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section id="empty-state" class="empty-state" aria-labelledby="empty-title">
+        <div class="section-intro">
+          <p class="eyebrow">UNREAL ENGINE BLUEPRINT</p>
+          <h1 id="empty-title">
+            <span data-i18n-lang="ja">Blueprint を貼り付ける</span>
+            <span data-i18n-lang="en">Paste Blueprint</span>
+          </h1>
+          <p class="intro-copy">
+            <span data-i18n-lang="ja">Unreal Engine でノードをコピーして、このページでそのまま貼り付けます。<br>必要な情報だけに整理してコピーできます。</span>
+            <span data-i18n-lang="en">Copy nodes in Unreal Engine and paste them here.<br>Keep only the information you need, then copy the result.</span>
+          </p>
+        </div>
+
+        <div id="paste-zone" class="paste-zone" tabindex="0">
+          <kbd>Ctrl + V</kbd>
+          <p class="paste-label">
+            <span data-i18n-lang="ja">Blueprint ノードを貼り付け</span>
+            <span data-i18n-lang="en">Paste Blueprint nodes</span>
+          </p>
+          <button id="paste-button" class="secondary-button" type="button">
+            <span data-i18n-lang="ja">クリップボードから貼り付け</span>
+            <span data-i18n-lang="en">Paste from Clipboard</span>
+          </button>
+        </div>
+      </section>
+
+      <section id="result-state" class="result-state" aria-labelledby="result-title" hidden>
+        <div class="result-heading">
+          <div>
+            <p class="eyebrow">UNREAL ENGINE BLUEPRINT</p>
+            <h1 id="result-title">
+              <span data-i18n-lang="ja">Blueprint を検出</span>
+              <span data-i18n-lang="en">Blueprint detected</span>
+            </h1>
+          </div>
+          <p class="graph-counts" aria-live="polite">
+            <span id="node-count">0</span> <span data-i18n-lang="ja">ノード</span><span data-i18n-lang="en">Nodes</span>
+            <span class="count-divider">/</span>
+            <span id="pin-count">0</span> <span data-i18n-lang="ja">ピン</span><span data-i18n-lang="en">Pins</span>
+            <span class="count-divider">/</span>
+            <span id="connection-count">0</span> <span data-i18n-lang="ja">接続</span><span data-i18n-lang="en">Connections</span>
+          </p>
+        </div>
+
+        <button id="copy-button" class="primary-button" type="button">
+          <span class="copy-default" data-i18n-lang="ja">コピー</span>
+          <span class="copy-default" data-i18n-lang="en">Copy</span>
+          <span class="copy-feedback" data-i18n-lang="ja">コピーしました</span>
+          <span class="copy-feedback" data-i18n-lang="en">Copied</span>
+        </button>
+
+        <div class="control-grid">
+          <label class="control-cell" for="preset-select">
+            <span class="control-label" data-i18n-lang="ja">プリセット</span>
+            <span class="control-label" data-i18n-lang="en">Preset</span>
+            <select id="preset-select">
+              <option value="compact">Compact</option>
+              <option value="standard">Standard</option>
+              <option value="full">Full</option>
+              <option value="custom" hidden>Custom</option>
+            </select>
+          </label>
+
+          <label class="control-cell" for="format-select">
+            <span class="control-label" data-i18n-lang="ja">形式</span>
+            <span class="control-label" data-i18n-lang="en">Format</span>
+            <select id="format-select">
+              <option value="compact-json">Compact JSON</option>
+              <option value="pretty-json">Pretty JSON</option>
+              <option value="markdown">Markdown</option>
+            </select>
+          </label>
+
+          <button id="markdown-button" class="control-cell action-cell" type="button">
+            <span class="control-label" data-i18n-lang="ja">Markdown</span>
+            <span class="control-label" data-i18n-lang="en">Markdown</span>
+            <span class="control-value action-default" data-i18n-lang="ja">コピー</span>
+            <span class="control-value action-default" data-i18n-lang="en">Copy</span>
+            <span class="control-value action-feedback" data-i18n-lang="ja">コピーしました</span>
+            <span class="control-value action-feedback" data-i18n-lang="en">Copied</span>
+          </button>
+
+          <button id="download-button" class="control-cell action-cell" type="button">
+            <span class="control-label" data-i18n-lang="ja">JSON</span>
+            <span class="control-label" data-i18n-lang="en">JSON</span>
+            <span class="control-value" data-i18n-lang="ja">保存</span>
+            <span class="control-value" data-i18n-lang="en">Download</span>
+          </button>
+        </div>
+
+        <div class="size-row" aria-live="polite">
+          <p><span id="source-size">0 B</span><span class="size-arrow">→</span><strong id="output-size">0 B</strong></p>
+          <p id="reduction-value">0%</p>
+        </div>
+
+        <div id="parse-warning" class="inline-message warning-message" role="status" hidden></div>
+
+        <div class="disclosure-list">
+          <section class="disclosure">
+            <button class="disclosure-button" type="button" aria-expanded="false" aria-controls="output-panel">
+              <span>
+                <span data-i18n-lang="ja">出力を確認</span>
+                <span data-i18n-lang="en">Preview Output</span>
+              </span>
+              <span class="disclosure-symbol" aria-hidden="true">+</span>
+            </button>
+            <div id="output-panel" class="disclosure-panel" hidden>
+              <pre id="output-preview" tabindex="0"></pre>
+            </div>
+          </section>
+
+          <section class="disclosure">
+            <button class="disclosure-button" type="button" aria-expanded="false" aria-controls="source-panel">
+              <span>
+                <span data-i18n-lang="ja">元のBlueprint</span>
+                <span data-i18n-lang="en">Source Blueprint</span>
+              </span>
+              <span class="disclosure-symbol" aria-hidden="true">+</span>
+            </button>
+            <div id="source-panel" class="disclosure-panel" hidden>
+              <pre id="source-preview" tabindex="0"></pre>
+            </div>
+          </section>
+
+          <section class="disclosure">
+            <button class="disclosure-button" type="button" aria-expanded="false" aria-controls="settings-panel">
+              <span>
+                <span data-i18n-lang="ja">詳細設定</span>
+                <span data-i18n-lang="en">Advanced Settings</span>
+              </span>
+              <span class="disclosure-symbol" aria-hidden="true">+</span>
+            </button>
+            <div id="settings-panel" class="disclosure-panel settings-panel" hidden>
+              <fieldset>
+                <legend>
+                  <span data-i18n-lang="ja">ノード情報</span>
+                  <span data-i18n-lang="en">Node information</span>
+                </legend>
+                <label><input type="checkbox" data-setting="includeNodeName"> <span data-i18n-lang="ja">ノード名</span><span data-i18n-lang="en">Node Name</span></label>
+                <label><input type="checkbox" data-setting="includeNodeType"> <span data-i18n-lang="ja">ノードタイプ</span><span data-i18n-lang="en">Node Type</span></label>
+                <label><input type="checkbox" data-setting="includeComments"> <span data-i18n-lang="ja">コメント</span><span data-i18n-lang="en">Comments</span></label>
+                <label><input type="checkbox" data-setting="includePosition"> <span data-i18n-lang="ja">位置</span><span data-i18n-lang="en">Position</span></label>
+                <label><input type="checkbox" data-setting="includeGuid"> <span data-i18n-lang="ja">GUID</span><span data-i18n-lang="en">GUID</span></label>
+              </fieldset>
+
+              <fieldset>
+                <legend>
+                  <span data-i18n-lang="ja">ピンと接続</span>
+                  <span data-i18n-lang="en">Pins &amp; connections</span>
+                </legend>
+                <label><input type="checkbox" data-setting="includePinName"> <span data-i18n-lang="ja">ピン名</span><span data-i18n-lang="en">Pin Name</span></label>
+                <label><input type="checkbox" data-setting="includePinType"> <span data-i18n-lang="ja">ピンタイプ</span><span data-i18n-lang="en">Pin Type</span></label>
+                <label><input type="checkbox" data-setting="includeDefaultValue"> <span data-i18n-lang="ja">デフォルト値</span><span data-i18n-lang="en">Default Value</span></label>
+                <label><input type="checkbox" data-setting="includeExecConnections"> <span data-i18n-lang="ja">実行接続</span><span data-i18n-lang="en">Execution Connections</span></label>
+                <label><input type="checkbox" data-setting="includeDataConnections"> <span data-i18n-lang="ja">データ接続</span><span data-i18n-lang="en">Data Connections</span></label>
+              </fieldset>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <p id="app-message" class="inline-message" role="alert" aria-live="assertive" hidden></p>
+      <p class="privacy-note">
+        <span data-i18n-lang="ja">Blueprint の内容は保存・送信しません。</span>
+        <span data-i18n-lang="en">Blueprint content is not stored or uploaded.</span>
+      </p>
+    </main>
+  </body>
+</html>
