@@ -57,12 +57,33 @@
     };
   }
 
-  function exportCompactJson(filteredGraph) {
-    return JSON.stringify(filteredGraph);
+  function aiContext(language) {
+    if (language === "en") {
+      return {
+        purpose: "This data represents Unreal Engine Blueprint nodes, pins, properties, and connection relationships.",
+        instruction: "Analyze the Blueprint structure, explain what it does, and point out possible issues or improvements when useful.",
+      };
+    }
+    return {
+      purpose: "このデータは、Unreal Engine Blueprintのノード、ピン、設定値、接続関係を表しています。",
+      instruction: "Blueprintの構造を読み取り、処理内容を説明してください。必要に応じて問題点や改善案も提示してください。",
+    };
   }
 
-  function exportPrettyJson(filteredGraph) {
-    return JSON.stringify(filteredGraph, null, 2);
+  function addAiContext(filteredGraph, options = {}) {
+    if (options.includeAiInstructions === false) return filteredGraph;
+    return {
+      ai_context: aiContext(options.language),
+      ...filteredGraph,
+    };
+  }
+
+  function exportCompactJson(filteredGraph, options = {}) {
+    return JSON.stringify(addAiContext(filteredGraph, options));
+  }
+
+  function exportPrettyJson(filteredGraph, options = {}) {
+    return JSON.stringify(addAiContext(filteredGraph, options), null, 2);
   }
 
   function pinLine(pin) {
@@ -73,8 +94,12 @@
     return details.length ? `- ${name} (${details.join(", ")})` : `- ${name}`;
   }
 
-  function exportMarkdown(filteredGraph) {
+  function exportMarkdown(filteredGraph, options = {}) {
     const lines = ["# Blueprint", ""];
+    if (options.includeAiInstructions !== false) {
+      const context = aiContext(options.language);
+      lines.push("> AI context", ">", `> ${context.purpose}`, `> ${context.instruction}`, "");
+    }
     lines.push(
       `${filteredGraph.metadata.nodes} ${filteredGraph.metadata.nodes === 1 ? "node" : "nodes"} · ` +
         `${filteredGraph.metadata.pins} ${filteredGraph.metadata.pins === 1 ? "pin" : "pins"} · ` +
@@ -110,10 +135,10 @@
     return lines.join("\n").trimEnd();
   }
 
-  function exportByFormat(filteredGraph, format) {
-    if (format === "pretty-json") return exportPrettyJson(filteredGraph);
-    if (format === "markdown") return exportMarkdown(filteredGraph);
-    return exportCompactJson(filteredGraph);
+  function exportByFormat(filteredGraph, format, options = {}) {
+    if (format === "pretty-json") return exportPrettyJson(filteredGraph, options);
+    if (format === "markdown") return exportMarkdown(filteredGraph, options);
+    return exportCompactJson(filteredGraph, options);
   }
 
   root.BlueprintCompactExporter = {

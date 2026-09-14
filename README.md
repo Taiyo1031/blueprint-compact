@@ -5,9 +5,10 @@ Blueprint Compact converts Unreal Engine Blueprint clipboard text into compact J
 ## Use
 
 1. Select Blueprint nodes in Unreal Engine and press `Ctrl + C`.
-2. Open Blueprint Compact and press `Ctrl + V` anywhere on the page.
-3. Choose an output preset or format if needed.
-4. Press **Copy**. `Ctrl + Enter` also copies the current output.
+2. Open Blueprint Compact and press **Convert from Clipboard**. The result is converted to JSON and copied automatically.
+3. Copy another set of nodes in Unreal Engine and press the same button on the result screen to replace the current result.
+4. Switch to Pretty JSON or Markdown below the preview and press **Copy this format** when needed.
+5. `Ctrl + V` anywhere on the page also replaces the current result and copies it automatically. `Ctrl + Enter` copies the current output.
 
 ## Features
 
@@ -15,6 +16,7 @@ Blueprint Compact converts Unreal Engine Blueprint clipboard text into compact J
 - Japanese and English interface
 - Compact, Standard, and Full presets
 - Compact JSON, pretty JSON, and Markdown export
+- Optional AI context included in copied JSON/Markdown by default
 - Human-readable node and pin connections
 - JSON download without a server
 - Settings stored locally, while Blueprint source remains memory-only

@@ -15,6 +15,7 @@
     includeDefaultValue: true,
     includeExecConnections: true,
     includeDataConnections: true,
+    includeAiInstructions: true,
   };
 
   const presets = {
@@ -29,6 +30,7 @@
       includeDefaultValue: true,
       includeExecConnections: true,
       includeDataConnections: true,
+      includeAiInstructions: true,
     },
     standard: { ...defaultSettings },
     full: {
@@ -46,6 +48,7 @@
     preset: "standard",
     format: "compact-json",
     output: "",
+    clipboardStatus: "ready",
   };
 
   const elements = {};
@@ -56,11 +59,14 @@
     elements.resultState = document.getElementById("result-state");
     elements.pasteZone = document.getElementById("paste-zone");
     elements.pasteButton = document.getElementById("paste-button");
+    elements.repeatConvertButton = document.getElementById("repeat-convert-button");
     elements.copyButton = document.getElementById("copy-button");
-    elements.markdownButton = document.getElementById("markdown-button");
     elements.downloadButton = document.getElementById("download-button");
     elements.presetSelect = document.getElementById("preset-select");
-    elements.formatSelect = document.getElementById("format-select");
+    elements.formatButtons = [...document.querySelectorAll("[data-format]")];
+    elements.formatSwitch = document.querySelector(".format-switch");
+    elements.outputSection = document.querySelector(".output-section");
+    elements.actionStatus = document.getElementById("action-status");
     elements.nodeCount = document.getElementById("node-count");
     elements.pinCount = document.getElementById("pin-count");
     elements.connectionCount = document.getElementById("connection-count");
@@ -122,7 +128,12 @@
       button.setAttribute("aria-pressed", String(button.dataset.languageButton === state.language));
     }
     elements.presetSelect.setAttribute("aria-label", state.language === "ja" ? "プリセット" : "Preset");
-    elements.formatSelect.setAttribute("aria-label", state.language === "ja" ? "形式" : "Format");
+    elements.formatSwitch?.setAttribute("aria-label", state.language === "ja" ? "出力形式" : "Output format");
+    if (state.graph) {
+      state.clipboardStatus = "changed";
+      updateOutput();
+    }
+    renderActionStatus();
     showParseWarning();
     savePreferences();
   }
@@ -130,7 +141,9 @@
   function syncControls() {
     elements.presetSelect.value = state.preset;
     elements.presetSelect.querySelector('option[value="custom"]').hidden = state.preset !== "custom";
-    elements.formatSelect.value = state.format;
+    for (const button of elements.formatButtons) {
+      button.setAttribute("aria-pressed", String(button.dataset.format === state.format));
+    }
     for (const input of elements.settingInputs) {
       input.checked = Boolean(state.settings[input.dataset.setting]);
     }
@@ -149,7 +162,10 @@
   function updateOutput() {
     if (!state.graph) return;
     const filtered = BlueprintCompactExporter.filterGraph(state.graph, state.settings, state.preset);
-    state.output = BlueprintCompactExporter.exportByFormat(filtered, state.format);
+    state.output = BlueprintCompactExporter.exportByFormat(filtered, state.format, {
+      language: state.language,
+      includeAiInstructions: state.settings.includeAiInstructions,
+    });
     const resultSize = outputBytes(state.output);
     const sourceSize = state.graph.metadata.sourceSize;
     const reduction = sourceSize ? (1 - resultSize / sourceSize) * 100 : 0;
@@ -188,6 +204,26 @@
     elements.message.hidden = true;
   }
 
+  function renderActionStatus() {
+    if (!elements.actionStatus) return;
+    const messages = {
+      ready: [
+        "クリックすると、現在のクリップボード内容で置き換わります。",
+        "Click to replace this result with the current clipboard contents.",
+      ],
+      copied: [
+        `${state.format === "markdown" ? "Markdown" : "JSON"}としてクリップボードにコピー済みです。`,
+        `Copied as ${state.format === "markdown" ? "Markdown" : "JSON"} to the clipboard.`,
+      ],
+      changed: [
+        "出力を更新しました。必要なら下のボタンでコピーしてください。",
+        "The output changed. Copy it with the button below when ready.",
+      ],
+    };
+    const [ja, en] = messages[state.clipboardStatus] || messages.ready;
+    elements.actionStatus.textContent = translatedMessage(ja, en);
+  }
+
   function showParseWarning() {
     const count = state.graph?.metadata.warningCount || 0;
     if (!count) {
@@ -209,7 +245,7 @@
     }
   }
 
-  function handleBlueprintText(text) {
+  async function handleBlueprintText(text, { autoCopy = false, feedbackButton = null } = {}) {
     try {
       const graph = BlueprintCompactParser.parseBlueprintText(text);
       state.rawText = text;
@@ -220,15 +256,26 @@
       closeDisclosures();
       updateOutput();
       showParseWarning();
+      state.clipboardStatus = "ready";
+      if (autoCopy) {
+        const copied = await copyText(state.output, feedbackButton || elements.copyButton);
+        state.clipboardStatus = copied ? "copied" : "ready";
+      }
+      renderActionStatus();
+      window.requestAnimationFrame(() => {
+        elements.outputSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return true;
     } catch (_error) {
       showMessage(
         "Blueprintノードを認識できませんでした。Unreal Engineでノードをコピーしてから貼り付けてください。",
         "Blueprint nodes could not be detected. Copy nodes in Unreal Engine and paste them again."
       );
+      return false;
     }
   }
 
-  async function pasteFromClipboard() {
+  async function convertFromClipboard(button) {
     if (!navigator.clipboard?.readText) {
       showMessage(
         "このブラウザではボタンから読み取れません。Ctrl + V で貼り付けてください。",
@@ -238,7 +285,15 @@
     }
 
     try {
-      handleBlueprintText(await navigator.clipboard.readText());
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        showMessage(
+          "クリップボードが空です。Unreal Engineでノードをコピーしてください。",
+          "The clipboard is empty. Copy Blueprint nodes in Unreal Engine first."
+        );
+        return;
+      }
+      await handleBlueprintText(text, { autoCopy: true, feedbackButton: button });
     } catch (_error) {
       showMessage(
         "クリップボードを読み取れませんでした。Ctrl + V で貼り付けてください。",
@@ -262,32 +317,41 @@
         document.execCommand("copy");
         textarea.remove();
       }
-      button.classList.add("is-copied");
-      window.setTimeout(() => button.classList.remove("is-copied"), 1500);
+      if (button) {
+        button.classList.add("is-copied");
+        window.setTimeout(() => button.classList.remove("is-copied"), 1500);
+      }
+      return true;
     } catch (_error) {
       showMessage(
-        "コピーできませんでした。出力を確認から手動でコピーしてください。",
-        "Copy failed. Open Preview Output and copy the text manually."
+        "コピーできませんでした。下のプレビューから手動でコピーしてください。",
+        "Copy failed. Use the preview below to copy manually."
       );
+      return false;
     }
   }
 
-  function copyCurrentOutput() {
-    if (state.graph) copyText(state.output, elements.copyButton);
-  }
-
-  function copyMarkdown() {
+  async function copyCurrentOutput() {
     if (!state.graph) return;
-    const filtered = BlueprintCompactExporter.filterGraph(state.graph, state.settings, state.preset);
-    copyText(BlueprintCompactExporter.exportMarkdown(filtered), elements.markdownButton);
+    const copied = await copyText(state.output, elements.copyButton);
+    if (copied) {
+      state.clipboardStatus = "copied";
+      renderActionStatus();
+    }
   }
 
   function downloadJson() {
     if (!state.graph) return;
     const filtered = BlueprintCompactExporter.filterGraph(state.graph, state.settings, state.preset);
     const content = state.format === "compact-json"
-      ? BlueprintCompactExporter.exportCompactJson(filtered)
-      : BlueprintCompactExporter.exportPrettyJson(filtered);
+      ? BlueprintCompactExporter.exportCompactJson(filtered, {
+          language: state.language,
+          includeAiInstructions: state.settings.includeAiInstructions,
+        })
+      : BlueprintCompactExporter.exportPrettyJson(filtered, {
+          language: state.language,
+          includeAiInstructions: state.settings.includeAiInstructions,
+        });
     const blob = new Blob([content], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -318,7 +382,10 @@
       event.preventDefault();
       elements.pasteZone.classList.add("is-receiving");
       window.setTimeout(() => elements.pasteZone.classList.remove("is-receiving"), 120);
-      handleBlueprintText(text);
+      handleBlueprintText(text, {
+        autoCopy: true,
+        feedbackButton: elements.repeatConvertButton || elements.pasteButton,
+      });
     });
 
     document.addEventListener("keydown", (event) => {
@@ -328,27 +395,35 @@
       }
     });
 
-    elements.pasteButton.addEventListener("click", pasteFromClipboard);
+    elements.pasteButton.addEventListener("click", () => convertFromClipboard(elements.pasteButton));
+    elements.repeatConvertButton.addEventListener("click", () => convertFromClipboard(elements.repeatConvertButton));
     elements.copyButton.addEventListener("click", copyCurrentOutput);
-    elements.markdownButton.addEventListener("click", copyMarkdown);
     elements.downloadButton.addEventListener("click", downloadJson);
 
     elements.presetSelect.addEventListener("change", () => {
       state.preset = elements.presetSelect.value;
       if (presets[state.preset]) state.settings = { ...presets[state.preset] };
+      state.clipboardStatus = "changed";
       updateOutput();
+      renderActionStatus();
     });
 
-    elements.formatSelect.addEventListener("change", () => {
-      state.format = elements.formatSelect.value;
-      updateOutput();
-    });
+    for (const button of elements.formatButtons) {
+      button.addEventListener("click", () => {
+        state.format = button.dataset.format;
+        state.clipboardStatus = "changed";
+        updateOutput();
+        renderActionStatus();
+      });
+    }
 
     for (const input of elements.settingInputs) {
       input.addEventListener("change", () => {
         state.settings[input.dataset.setting] = input.checked;
         state.preset = "custom";
+        state.clipboardStatus = "changed";
         updateOutput();
+        renderActionStatus();
       });
     }
 

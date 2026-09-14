@@ -35,25 +35,35 @@
         <div class="section-intro">
           <p class="eyebrow">UNREAL ENGINE BLUEPRINT</p>
           <h1 id="empty-title">
-            <span data-i18n-lang="ja">Blueprint を貼り付ける</span>
-            <span data-i18n-lang="en">Paste Blueprint</span>
+            <span data-i18n-lang="ja">Blueprintを変換する</span>
+            <span data-i18n-lang="en">Convert Blueprint</span>
           </h1>
           <p class="intro-copy">
-            <span data-i18n-lang="ja">Unreal Engine でノードをコピーして、このページでそのまま貼り付けます。<br>必要な情報だけに整理してコピーできます。</span>
-            <span data-i18n-lang="en">Copy nodes in Unreal Engine and paste them here.<br>Keep only the information you need, then copy the result.</span>
+            <span data-i18n-lang="ja">Unreal Engine でノードをコピーして、下のボタンを押してください。<br>変換結果は自動でクリップボードに保存されます。</span>
+            <span data-i18n-lang="en">Copy nodes in Unreal Engine, then press the button below.<br>The converted result is copied automatically.</span>
           </p>
         </div>
 
-        <div id="paste-zone" class="paste-zone" tabindex="0">
+        <div id="paste-zone" class="paste-zone">
           <kbd>Ctrl + V</kbd>
           <p class="paste-label">
-            <span data-i18n-lang="ja">Blueprint ノードを貼り付け</span>
-            <span data-i18n-lang="en">Paste Blueprint nodes</span>
+            <span data-i18n-lang="ja">ノードをコピーしたら、ボタンを押してください</span>
+            <span data-i18n-lang="en">Copy nodes, then press the button</span>
           </p>
-          <button id="paste-button" class="secondary-button" type="button">
-            <span data-i18n-lang="ja">クリップボードから貼り付け</span>
-            <span data-i18n-lang="en">Paste from Clipboard</span>
+          <button id="paste-button" class="convert-cta" type="button">
+            <span class="convert-default">
+              <span data-i18n-lang="ja">クリップボードから変換</span>
+              <span data-i18n-lang="en">Convert from Clipboard</span>
+            </span>
+            <span class="convert-feedback">
+              <span data-i18n-lang="ja">変換してコピーしました</span>
+              <span data-i18n-lang="en">Converted and copied</span>
+            </span>
           </button>
+          <p class="action-hint">
+            <span data-i18n-lang="ja">読み取り → 変換 → JSONとしてコピー</span>
+            <span data-i18n-lang="en">Read → convert → copy as JSON</span>
+          </p>
         </div>
       </section>
 
@@ -75,12 +85,22 @@
           </p>
         </div>
 
-        <button id="copy-button" class="primary-button" type="button">
-          <span class="copy-default" data-i18n-lang="ja">コピー</span>
-          <span class="copy-default" data-i18n-lang="en">Copy</span>
-          <span class="copy-feedback" data-i18n-lang="ja">コピーしました</span>
-          <span class="copy-feedback" data-i18n-lang="en">Copied</span>
-        </button>
+        <div class="repeat-action">
+          <button id="repeat-convert-button" class="convert-cta" type="button">
+            <span class="convert-default">
+              <span data-i18n-lang="ja">別のBlueprintを変換してコピー</span>
+              <span data-i18n-lang="en">Convert and copy another Blueprint</span>
+            </span>
+            <span class="convert-feedback">
+              <span data-i18n-lang="ja">変換してコピーしました</span>
+              <span data-i18n-lang="en">Converted and copied</span>
+            </span>
+          </button>
+          <p id="action-status" class="action-status" role="status" aria-live="polite">
+            <span data-i18n-lang="ja">クリックすると、現在のクリップボード内容で置き換わります。</span>
+            <span data-i18n-lang="en">Click to replace this result with the current clipboard contents.</span>
+          </p>
+        </div>
 
         <div class="control-grid">
           <label class="control-cell" for="preset-select">
@@ -94,25 +114,6 @@
             </select>
           </label>
 
-          <label class="control-cell" for="format-select">
-            <span class="control-label" data-i18n-lang="ja">形式</span>
-            <span class="control-label" data-i18n-lang="en">Format</span>
-            <select id="format-select">
-              <option value="compact-json">Compact JSON</option>
-              <option value="pretty-json">Pretty JSON</option>
-              <option value="markdown">Markdown</option>
-            </select>
-          </label>
-
-          <button id="markdown-button" class="control-cell action-cell" type="button">
-            <span class="control-label" data-i18n-lang="ja">Markdown</span>
-            <span class="control-label" data-i18n-lang="en">Markdown</span>
-            <span class="control-value action-default" data-i18n-lang="ja">コピー</span>
-            <span class="control-value action-default" data-i18n-lang="en">Copy</span>
-            <span class="control-value action-feedback" data-i18n-lang="ja">コピーしました</span>
-            <span class="control-value action-feedback" data-i18n-lang="en">Copied</span>
-          </button>
-
           <button id="download-button" class="control-cell action-cell" type="button">
             <span class="control-label" data-i18n-lang="ja">JSON</span>
             <span class="control-label" data-i18n-lang="en">JSON</span>
@@ -120,6 +121,42 @@
             <span class="control-value" data-i18n-lang="en">Download</span>
           </button>
         </div>
+
+        <section class="output-section" aria-labelledby="output-title">
+          <div class="output-heading">
+            <div>
+              <p class="eyebrow">OUTPUT</p>
+              <h2 id="output-title">
+                <span data-i18n-lang="ja">プレビュー</span>
+                <span data-i18n-lang="en">Preview</span>
+              </h2>
+            </div>
+            <div class="format-switch" role="group" aria-label="Output format">
+              <button type="button" class="format-button" data-format="compact-json" aria-pressed="true">
+                <span data-i18n-lang="ja">JSON</span><span data-i18n-lang="en">JSON</span>
+              </button>
+              <button type="button" class="format-button" data-format="pretty-json" aria-pressed="false">
+                <span data-i18n-lang="ja">整形JSON</span><span data-i18n-lang="en">Pretty JSON</span>
+              </button>
+              <button type="button" class="format-button" data-format="markdown" aria-pressed="false">
+                <span data-i18n-lang="ja">Markdown</span><span data-i18n-lang="en">Markdown</span>
+              </button>
+            </div>
+          </div>
+          <pre id="output-preview" tabindex="0"></pre>
+          <div class="output-actions">
+            <button id="copy-button" class="primary-button" type="button">
+              <span class="copy-default" data-i18n-lang="ja">この形式でコピー</span>
+              <span class="copy-default" data-i18n-lang="en">Copy this format</span>
+              <span class="copy-feedback" data-i18n-lang="ja">コピーしました</span>
+              <span class="copy-feedback" data-i18n-lang="en">Copied</span>
+            </button>
+            <p class="output-note">
+              <span data-i18n-lang="ja">AI向け説明文は詳細設定で切り替え</span>
+              <span data-i18n-lang="en">AI context can be toggled in Advanced Settings</span>
+            </p>
+          </div>
+        </section>
 
         <div class="size-row" aria-live="polite">
           <p><span id="source-size">0 B</span><span class="size-arrow">→</span><strong id="output-size">0 B</strong></p>
@@ -129,19 +166,6 @@
         <div id="parse-warning" class="inline-message warning-message" role="status" hidden></div>
 
         <div class="disclosure-list">
-          <section class="disclosure">
-            <button class="disclosure-button" type="button" aria-expanded="false" aria-controls="output-panel">
-              <span>
-                <span data-i18n-lang="ja">出力を確認</span>
-                <span data-i18n-lang="en">Preview Output</span>
-              </span>
-              <span class="disclosure-symbol" aria-hidden="true">+</span>
-            </button>
-            <div id="output-panel" class="disclosure-panel" hidden>
-              <pre id="output-preview" tabindex="0"></pre>
-            </div>
-          </section>
-
           <section class="disclosure">
             <button class="disclosure-button" type="button" aria-expanded="false" aria-controls="source-panel">
               <span>
@@ -186,6 +210,7 @@
                 <label><input type="checkbox" data-setting="includeDefaultValue"> <span data-i18n-lang="ja">デフォルト値</span><span data-i18n-lang="en">Default Value</span></label>
                 <label><input type="checkbox" data-setting="includeExecConnections"> <span data-i18n-lang="ja">実行接続</span><span data-i18n-lang="en">Execution Connections</span></label>
                 <label><input type="checkbox" data-setting="includeDataConnections"> <span data-i18n-lang="ja">データ接続</span><span data-i18n-lang="en">Data Connections</span></label>
+                <label><input type="checkbox" data-setting="includeAiInstructions"> <span data-i18n-lang="ja">AI向け説明文</span><span data-i18n-lang="en">AI Context</span></label>
               </fieldset>
             </div>
           </section>
