@@ -23,9 +23,15 @@
     <header class="site-header">
       <div class="header-inner">
         <a class="wordmark" href="./" aria-label="Blueprint Compact home">Blueprint Compact</a>
-        <div class="language-switch" role="group" aria-label="Language">
-          <button type="button" class="language-button" data-language-button="ja" aria-pressed="true">日本語</button>
-          <button type="button" class="language-button" data-language-button="en" aria-pressed="false">English</button>
+        <div class="header-actions">
+          <a class="guide-link" href="guide.html">
+            <span data-i18n-lang="ja">使い方・仕組み</span>
+            <span data-i18n-lang="en">Guide</span>
+          </a>
+          <div class="language-switch" role="group" aria-label="Language">
+            <button type="button" class="language-button" data-language-button="ja" aria-pressed="true">日本語</button>
+            <button type="button" class="language-button" data-language-button="en" aria-pressed="false">English</button>
+          </div>
         </div>
       </div>
     </header>
@@ -65,6 +71,27 @@
             <span data-i18n-lang="en">Read → convert → copy as JSON</span>
           </p>
         </div>
+
+        <section class="quick-start" aria-labelledby="quick-start-title">
+          <div class="quick-start-heading">
+            <div>
+              <p class="eyebrow">QUICK START</p>
+              <h2 id="quick-start-title">
+                <span data-i18n-lang="ja">使い方は3ステップ</span>
+                <span data-i18n-lang="en">Use it in three steps</span>
+              </h2>
+            </div>
+            <a class="text-link" href="guide.html">
+              <span data-i18n-lang="ja">詳しい説明を見る →</span>
+              <span data-i18n-lang="en">See how it works →</span>
+            </a>
+          </div>
+          <div class="quick-grid">
+            <div class="quick-step"><span class="step-number">01</span><span data-i18n-lang="ja">Unreal Engineでノードを選択してコピー</span><span data-i18n-lang="en">Select and copy nodes in Unreal Engine</span></div>
+            <div class="quick-step"><span class="step-number">02</span><span data-i18n-lang="ja">このページでボタンをクリック</span><span data-i18n-lang="en">Click the button on this page</span></div>
+            <div class="quick-step"><span class="step-number">03</span><span data-i18n-lang="ja">変換結果をそのままAIへ貼り付け</span><span data-i18n-lang="en">Paste the converted result into your AI tool</span></div>
+          </div>
+        </section>
       </section>
 
       <section id="result-state" class="result-state" aria-labelledby="result-title" hidden>

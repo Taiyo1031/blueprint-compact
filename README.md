@@ -14,6 +14,7 @@ Blueprint Compact converts Unreal Engine Blueprint clipboard text into compact J
 
 - Global Blueprint paste handling
 - Japanese and English interface
+- Bilingual usage and internal-process guide
 - Compact, Standard, and Full presets
 - Compact JSON, pretty JSON, and Markdown export
 - Optional AI context included in copied JSON/Markdown by default
