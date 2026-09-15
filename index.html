@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Convert Unreal Engine Blueprint, Material and PCG nodes into JSON or Markdown, entirely in your browser."
+      content="Convert Unreal Engine nodes and level Actors into JSON or Markdown. Summarize large instance arrays locally in your browser."
     >
     <meta name="color-scheme" content="light">
     <title>Blueprint Compact</title>
@@ -37,24 +37,29 @@
     </header>
 
     <main class="app-shell">
+      <input id="file-input" type="file" accept=".txt,.t3d,text/plain" hidden>
+      <div id="conversion-progress" class="conversion-progress" role="status" hidden>
+        <span id="busy-status" aria-live="polite"></span>
+        <button id="cancel-conversion" class="text-link" type="button"><span data-i18n-lang="ja">中止</span><span data-i18n-lang="en">Cancel</span></button>
+      </div>
       <section id="empty-state" class="empty-state" aria-labelledby="empty-title">
         <div class="section-intro">
-          <p class="eyebrow">BLUEPRINT / MATERIAL / PCG</p>
+          <p class="eyebrow">BLUEPRINT / MATERIAL / PCG / ACTOR</p>
           <h1 id="empty-title">
-            <span data-i18n-lang="ja">ノードをAIに伝える</span>
-            <span data-i18n-lang="en">Make your nodes AI-ready</span>
+            <span data-i18n-lang="ja">Unrealの構成をAIに伝える</span>
+            <span data-i18n-lang="en">Make Unreal data AI-ready</span>
           </h1>
           <p class="intro-copy">
-            <span data-i18n-lang="ja">Unreal Engine でノードをコピーして、下のボタンを押してください。<br>変換結果は自動でクリップボードに保存されます。</span>
-            <span data-i18n-lang="en">Copy nodes in Unreal Engine, then press the button below.<br>The converted result is copied automatically.</span>
+            <span data-i18n-lang="ja">ノード、またはレベル上のActorをコピーして、下のボタンを押してください。<br>変換結果は自動でクリップボードに保存されます。</span>
+            <span data-i18n-lang="en">Copy graph nodes or level Actors, then press the button below.<br>The converted result is copied automatically.</span>
           </p>
         </div>
 
         <div id="paste-zone" class="paste-zone">
           <kbd>Ctrl + V</kbd>
           <p class="paste-label">
-            <span data-i18n-lang="ja">ノードをコピーしたら、ボタンを押してください</span>
-            <span data-i18n-lang="en">Copy nodes, then press the button</span>
+            <span data-i18n-lang="ja">コピーしたら、ボタンを押してください</span>
+            <span data-i18n-lang="en">Copy your selection, then press the button</span>
           </p>
           <button id="paste-button" class="convert-cta" type="button">
             <span class="convert-default">
@@ -70,6 +75,8 @@
             <span data-i18n-lang="ja">読み取り → 変換 → JSONとしてコピー</span>
             <span data-i18n-lang="en">Read → convert → copy as JSON</span>
           </p>
+          <button data-file-button class="file-button" type="button"><span data-i18n-lang="ja">テキストファイルから変換</span><span data-i18n-lang="en">Convert a text file</span></button>
+          <p class="file-hint"><span data-i18n-lang="ja">大きいActorデータは .txt / .t3d からも読み込めます。端末内で処理します。</span><span data-i18n-lang="en">Large Actor data can also be read from .txt / .t3d files. Processing stays on your device.</span></p>
         </div>
 
         <section class="quick-start" aria-labelledby="quick-start-title">
@@ -97,12 +104,13 @@
       <section id="result-state" class="result-state" aria-labelledby="result-title" hidden>
         <div class="result-heading">
           <div>
-          <p class="eyebrow">UNREAL ENGINE NODES</p>
+          <p class="eyebrow">UNREAL ENGINE DATA</p>
             <h1 id="result-title">
               <span id="detected-kind">Nodes detected</span>
             </h1>
           </div>
-          <p class="graph-counts" aria-live="polite">
+          <p id="actor-counts" class="graph-counts actor-only" aria-live="polite"></p>
+          <p class="graph-counts graph-only" aria-live="polite">
             <span id="node-count">0</span> <span data-i18n-lang="ja">ノード</span><span data-i18n-lang="en">Nodes</span>
             <span class="count-divider">/</span>
             <span id="pin-count">0</span> <span data-i18n-lang="ja">ピン</span><span data-i18n-lang="en">Pins</span>
@@ -114,8 +122,8 @@
         <div class="repeat-action">
           <button id="repeat-convert-button" class="convert-cta" type="button">
             <span class="convert-default">
-              <span data-i18n-lang="ja">次のノードを変換してコピー</span>
-              <span data-i18n-lang="en">Convert and copy the next nodes</span>
+              <span data-i18n-lang="ja">次のデータを変換してコピー</span>
+              <span data-i18n-lang="en">Convert and copy the next selection</span>
             </span>
             <span class="convert-feedback">
               <span data-i18n-lang="ja">変換してコピーしました</span>
@@ -126,10 +134,13 @@
             <span data-i18n-lang="ja">クリックすると、現在のクリップボード内容で置き換わります。</span>
             <span data-i18n-lang="en">Click to replace this result with the current clipboard contents.</span>
           </p>
+          <button data-file-button class="file-button" type="button"><span data-i18n-lang="ja">別のテキストファイルを開く</span><span data-i18n-lang="en">Open another text file</span></button>
         </div>
 
+        <p class="actor-only actor-summary-note"><span data-i18n-lang="ja">Actorモード：構成・設定を保持し、インスタンス配列は件数・範囲・先頭3件に要約します。その他の配列も32件を超えると要約します。全件は「元データを保存」から確認できます。</span><span data-i18n-lang="en">Actor mode keeps configuration and summarizes instance arrays with counts, ranges, and the first 3 rows. Other arrays are summarized above 32 entries. Save the original data for every row.</span></p>
+
         <div class="control-grid">
-          <label class="control-cell" for="preset-select">
+          <label class="control-cell graph-only" for="preset-select">
             <span class="control-label" data-i18n-lang="ja">プリセット</span>
             <span class="control-label" data-i18n-lang="en">Preset</span>
             <select id="preset-select">
@@ -189,18 +200,20 @@
           <p id="reduction-value">0%</p>
         </div>
 
+        <p id="output-truncated" class="file-hint" hidden><span data-i18n-lang="ja">プレビューは先頭100,000文字までです。コピー・JSON保存には変換結果の全文を含みます。</span><span data-i18n-lang="en">Preview limited to 100,000 characters. Copy and JSON download include the entire converted result.</span></p>
         <div id="parse-warning" class="inline-message warning-message" role="status" hidden></div>
 
         <div class="disclosure-list">
           <section class="disclosure">
             <button class="disclosure-button" type="button" aria-expanded="false" aria-controls="source-panel">
               <span>
-                <span data-i18n-lang="ja">元のノードデータ</span>
-                <span data-i18n-lang="en">Source node data</span>
+                <span data-i18n-lang="ja">元データ</span>
+                <span data-i18n-lang="en">Source data</span>
               </span>
               <span class="disclosure-symbol" aria-hidden="true">+</span>
             </button>
             <div id="source-panel" class="disclosure-panel" hidden>
+              <button id="save-source" class="file-button" type="button"><span data-i18n-lang="ja">元データを保存（全件）</span><span data-i18n-lang="en">Save original data (all rows)</span></button>
               <pre id="source-preview" tabindex="0"></pre>
             </div>
           </section>
@@ -214,7 +227,7 @@
               <span class="disclosure-symbol" aria-hidden="true">+</span>
             </button>
             <div id="settings-panel" class="disclosure-panel settings-panel" hidden>
-              <fieldset>
+              <fieldset class="graph-only">
                 <legend>
                   <span data-i18n-lang="ja">ノード情報</span>
                   <span data-i18n-lang="en">Node information</span>
@@ -227,7 +240,7 @@
                 <label><input type="checkbox" data-setting="includeGuid"> <span data-i18n-lang="ja">GUID</span><span data-i18n-lang="en">GUID</span></label>
               </fieldset>
 
-              <fieldset>
+              <fieldset class="graph-only">
                 <legend>
                   <span data-i18n-lang="ja">ピンと接続</span>
                   <span data-i18n-lang="en">Pins &amp; connections</span>
@@ -237,8 +250,8 @@
                 <label><input type="checkbox" data-setting="includeDefaultValue"> <span data-i18n-lang="ja">デフォルト値</span><span data-i18n-lang="en">Default Value</span></label>
                 <label><input type="checkbox" data-setting="includeExecConnections"> <span data-i18n-lang="ja">実行接続</span><span data-i18n-lang="en">Execution Connections</span></label>
                 <label><input type="checkbox" data-setting="includeDataConnections"> <span data-i18n-lang="ja">データ接続・PCG依存関係</span><span data-i18n-lang="en">Data &amp; PCG Dependency Connections</span></label>
-                <label><input type="checkbox" data-setting="includeAiInstructions"> <span data-i18n-lang="ja">AI向け説明文</span><span data-i18n-lang="en">AI Context</span></label>
               </fieldset>
+              <fieldset><legend><span data-i18n-lang="ja">AIへの説明</span><span data-i18n-lang="en">AI instructions</span></legend><label><input type="checkbox" data-setting="includeAiInstructions"> <span data-i18n-lang="ja">AI向け説明文</span><span data-i18n-lang="en">AI Context</span></label></fieldset>
             </div>
           </section>
         </div>
@@ -246,8 +259,8 @@
 
       <p id="app-message" class="inline-message" role="alert" aria-live="assertive" hidden></p>
       <p class="privacy-note">
-        <span data-i18n-lang="ja">ノードの内容は保存・送信しません。</span>
-        <span data-i18n-lang="en">Node content is not stored or uploaded.</span>
+        <span data-i18n-lang="ja">読み込んだ内容は自動保存・送信しません。</span>
+        <span data-i18n-lang="en">Imported content is not automatically stored or uploaded.</span>
       </p>
     </main>
   </body>

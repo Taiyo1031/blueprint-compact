@@ -1,6 +1,6 @@
 # Blueprint Compact
 
-Blueprint Compact converts Unreal Engine Blueprint, Material / Material Function, and PCG clipboard text into compact JSON, pretty JSON, or Markdown. Everything runs locally in the browser: pasted node content is never uploaded or saved.
+Blueprint Compact converts Unreal Engine Blueprint, Material / Material Function, PCG nodes, and level Actor clipboard text into JSON or Markdown. Processing stays in the browser; source content is not uploaded or persisted by the app.
 
 ## Use
 
@@ -39,9 +39,15 @@ Only copied nodes are available. External asset internals and omitted engine def
 
 Run `node --test tests/*.test.cjs`. Optional local sample checks accept `MATERIAL_SAMPLE` and `PCG_SAMPLE` environment variables containing file paths. Supplied samples and their asset contents are not included in this public repository.
 
+Actor tests also accept `ACTOR_SAMPLE`. Actor parsing runs incrementally in a Web Worker, merging object declarations/value blocks within each owner. Instance arrays retain counts, scalar min/max, serialized WPlane XYZ ranges, and the first three rows. Other indexed properties retain all rows up to 32, then use the same summary approach. Output explicitly marks omitted rows; it is not a lossless export. Original data can be downloaded separately. Unknown lines and non-contiguous arrays produce warnings.
+
+レベル上のActorコピーにも対応。所有階層・設定値・参照を残し、大量の配列は件数・範囲・先頭3件へ要約します。UTF-8の.txt/.t3d入力、進捗表示、中止、元データ保存に対応しています。参照先のBlueprint・PCG内部は含まれません。
+
+UI previews are bounded (20,000 source characters / 100,000 output characters); clipboard and JSON download receive the entire converted summary. Full instance rows remain in the original source download. Actor mode uses its own summary policy rather than node presets.
+
 ## Local server
 
-Open `index.html` directly, or serve the folder with any static file server.
+Serve the folder over HTTP(S) with a static file server. Workers require a served origin; opening index.html directly as file:// is not supported.
 
 ```bash
 python -m http.server 8000

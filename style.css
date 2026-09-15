@@ -963,3 +963,33 @@ input[type="checkbox"] {
     transition-duration: 0.01ms !important;
   }
 }
+.actor-only { display: none; }
+html[data-content-kind="actor"] .actor-only { display: block; }
+html[data-content-kind="actor"] .graph-only { display: none; }
+.file-button {
+  padding: 10px 16px;
+  margin-top: 12px;
+  border: 1px solid currentColor;
+  color: #111;
+  background: white;
+  font: inherit;
+  cursor: pointer;
+}
+.file-button:hover { color: white; background: #111; }
+.file-button:disabled { opacity: 0.5; cursor: wait; }
+.file-hint, .actor-summary-note { font-size: 13px; line-height: 1.7; }
+.actor-summary-note { padding: 16px; border: 1px solid #111; margin: 16px 0; }
+.conversion-progress {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  background: white;
+  border: 2px solid #111;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+.conversion-progress[hidden] { display: none; }

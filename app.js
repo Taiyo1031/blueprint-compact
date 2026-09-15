@@ -45,6 +45,9 @@
   const state = {
     language: "ja",
     rawText: "",
+    sourceInput: null,
+    previewTruncated: false,
+    busy: false,
     graph: null,
     settings: { ...defaultSettings },
     preset: "standard",
@@ -55,6 +58,9 @@
 
   const elements = {};
   let messageTimer = null;
+  let activeWorker = null;
+  let conversionId = 0;
+  let rejectConversion = null;
 
   function collectElements() {
     elements.emptyState = document.getElementById("empty-state");
@@ -79,6 +85,8 @@
     elements.sourcePreview = document.getElementById("source-preview");
     elements.message = document.getElementById("app-message");
     elements.parseWarning = document.getElementById("parse-warning");
+    elements.fileInput = document.getElementById("file-input");
+    elements.busyStatus = document.getElementById("busy-status");
     elements.settingInputs = [...document.querySelectorAll("[data-setting]")];
     elements.languageButtons = [...document.querySelectorAll("[data-language-button]")];
     elements.disclosureButtons = [...document.querySelectorAll(".disclosure-button")];
@@ -172,20 +180,32 @@
     const sourceSize = state.graph.metadata.sourceSize;
     const reduction = sourceSize ? (1 - resultSize / sourceSize) * 100 : 0;
 
-    elements.nodeCount.textContent = state.graph.metadata.nodeCount;
+    const actor = state.graph.metadata.graphType === "Actor";
+    document.documentElement.dataset.contentKind = actor ? "actor" : "graph";
+    elements.nodeCount.textContent = state.graph.metadata.nodeCount || 0;
     document.getElementById("detected-kind").textContent = translatedMessage(
-      `${state.graph.metadata.graphType} ノードを検出`,
-      `${state.graph.metadata.graphType} nodes detected`
+      actor ? "Actorの構成を読み取りました" : `${state.graph.metadata.graphType} ノードを検出`,
+      actor ? "Actor configuration detected" : `${state.graph.metadata.graphType} nodes detected`
     );
-    elements.pinCount.textContent = state.graph.metadata.pinCount;
-    elements.connectionCount.textContent = state.graph.metadata.connectionCount;
+    elements.pinCount.textContent = state.graph.metadata.pinCount || 0;
+    elements.connectionCount.textContent = state.graph.metadata.connectionCount || 0;
+    if (actor) {
+      document.getElementById("actor-counts").textContent = translatedMessage(
+        `${state.graph.metadata.actorCount} Actor / ${state.graph.metadata.objectCount} Object / ${state.graph.metadata.instanceCount.toLocaleString()} インスタンス行`,
+        `${state.graph.metadata.actorCount} Actors / ${state.graph.metadata.objectCount} Objects / ${state.graph.metadata.instanceCount.toLocaleString()} instance rows`
+      );
+    }
     elements.sourceSize.textContent = formatBytes(sourceSize);
     elements.outputSize.textContent = formatBytes(resultSize);
     elements.reductionValue.textContent = reduction >= 0
       ? `${reduction.toFixed(1)}%`
       : `+${Math.abs(reduction).toFixed(1)}%`;
-    elements.outputPreview.textContent = state.output;
-    elements.sourcePreview.textContent = state.rawText;
+    elements.outputPreview.textContent = state.output.slice(0, 100000);
+    document.getElementById("output-truncated").hidden = state.output.length <= 100000;
+    elements.sourcePreview.textContent = state.rawText + (state.previewTruncated ? translatedMessage(
+      "\n…表示は先頭部分のみです。全件は「元データを保存」から確認できます。",
+      "\n…Preview truncated. Save the original data to inspect every row."
+    ) : "");
     syncControls();
     savePreferences();
   }
@@ -236,7 +256,10 @@
       elements.parseWarning.hidden = true;
       return;
     }
-    elements.parseWarning.textContent = translatedMessage(
+    elements.parseWarning.textContent = state.graph.metadata.graphType === "Actor" ? translatedMessage(
+      `${count}件の確認事項があります。未解析の行: ${state.graph.metadata.ignoredLines}、連続していない配列: ${state.graph.metadata.irregularArrays}。完全な内容は元データも確認してください。`,
+      `${count} warnings: ${state.graph.metadata.ignoredLines} unparsed lines and ${state.graph.metadata.irregularArrays} non-contiguous arrays. Consult the original data for completeness.`
+    ) : translatedMessage(
       `${state.graph.metadata.nodeCount}ノードを検出しました。確認事項 ${count}件：未解決の接続・参照、未検証の汎用ノード、または読み取り対象外のオブジェクトがあります。部分コピーや未対応形式の可能性があります。出力のmetadataも確認してください。`,
       `${state.graph.metadata.nodeCount} nodes detected with ${count} warnings: unresolved links/references, unverified generic nodes, or skipped objects. This may be a partial selection or unsupported format. Check the output metadata.`
     );
@@ -251,10 +274,49 @@
     }
   }
 
-  async function handleBlueprintText(text, { autoCopy = false, feedbackButton = null } = {}) {
+  function setBusy(busy, progress = null) {
+    state.busy = busy;
+    document.getElementById("conversion-progress").hidden = !busy;
+    document.getElementById("cancel-conversion").disabled = false;
+    document.querySelectorAll("[data-file-button], #paste-button, #repeat-convert-button, #copy-button, #download-button").forEach((button) => { button.disabled = busy; });
+    elements.busyStatus.textContent = translatedMessage("読み取り・変換中", "Reading and converting") + (progress === null ? "…" : `… ${progress}%`);
+  }
+
+  function parseInput(input) {
+    if (!window.Worker) return Promise.reject(new Error("WORKER_UNAVAILABLE"));
+    return new Promise((resolve, reject) => {
+      rejectConversion = reject;
+      const worker = new Worker("conversion-worker.js");
+      activeWorker = worker;
+      worker.onmessage = ({ data }) => {
+        if (data.progress !== undefined) { setBusy(true, data.progress); return; }
+        worker.terminate();
+        activeWorker = null;
+        rejectConversion = null;
+        if (data.error) reject(new Error(data.error));
+        else resolve(data);
+      };
+      worker.onerror = () => {
+        worker.terminate();
+        activeWorker = null;
+        rejectConversion = null;
+        reject(new Error("WORKER_UNAVAILABLE"));
+      };
+      worker.postMessage(input instanceof File ? { file: input } : { text: input });
+    });
+  }
+
+  async function handleBlueprintText(input, { autoCopy = false, feedbackButton = null } = {}) {
+    if (state.busy) return false;
+    const id = ++conversionId;
+    setBusy(true);
     try {
-      const graph = BlueprintCompactParser.parseBlueprintText(text);
-      state.rawText = text;
+      const { graph, sourcePreview, previewTruncated } = await parseInput(input);
+      if (id !== conversionId) return false;
+      document.getElementById("cancel-conversion").disabled = true;
+      state.rawText = sourcePreview;
+      state.sourceInput = input;
+      state.previewTruncated = previewTruncated;
       state.graph = graph;
       hideMessage();
       elements.emptyState.hidden = true;
@@ -268,16 +330,21 @@
         state.clipboardStatus = copied ? "copied" : "ready";
       }
       renderActionStatus();
-      window.requestAnimationFrame(() => {
-        elements.outputSection?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      // Keep the next conversion button visible after repeated use.
       return true;
-    } catch (_error) {
-      showMessage(
-        "ノードを読み取れませんでした。Unreal EngineのBlueprint・Material・PCGでノードをコピーし、途切れていないテキストを貼り付けてください。",
-        "Could not read the nodes. Copy nodes from an Unreal Engine Blueprint, Material, or PCG graph and paste the complete text."
+    } catch (error) {
+      if (error.message === "CANCELLED") return false;
+      if (error.message === "WORKER_UNAVAILABLE") showMessage(
+        "処理を開始できませんでした。公開サイト、またはHTTPサーバーから開いてください。",
+        "Could not start processing. Open the published site or serve this folder over HTTP."
+      );
+      else showMessage(
+        "データを読み取れませんでした。Blueprint・Material・PCGのノード、またはレベル上のActorをコピーし、途切れていないテキストを使用してください。ファイルはUTF-8形式にしてください。",
+        "Could not read the data. Use complete Blueprint, Material, PCG node text or level Actor clipboard text. Files must use UTF-8 encoding."
       );
       return false;
+    } finally {
+      if (id === conversionId) setBusy(false);
     }
   }
 
@@ -294,8 +361,8 @@
       const text = await navigator.clipboard.readText();
       if (!text.trim()) {
         showMessage(
-          "クリップボードが空です。Unreal Engineでノードをコピーしてください。",
-          "The clipboard is empty. Copy nodes in Unreal Engine first."
+          "クリップボードが空です。Unreal EngineでノードかActorをコピーしてください。",
+          "The clipboard is empty. Copy nodes or Actors in Unreal Engine first."
         );
         return;
       }
@@ -320,8 +387,9 @@
         textarea.style.opacity = "0";
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand("copy");
+        const copied = document.execCommand("copy");
         textarea.remove();
+        if (!copied) throw new Error("COPY_FAILED");
       }
       if (button) {
         button.classList.add("is-copied");
@@ -378,6 +446,33 @@
   }
 
   function bindEvents() {
+    for (const button of document.querySelectorAll("[data-file-button]")) {
+      button.addEventListener("click", () => elements.fileInput.click());
+    }
+    elements.fileInput.addEventListener("change", () => {
+      const file = elements.fileInput.files[0];
+      elements.fileInput.value = "";
+      if (file) handleBlueprintText(file, { autoCopy: true });
+    });
+    document.getElementById("cancel-conversion").addEventListener("click", () => {
+      conversionId++;
+      activeWorker?.terminate();
+      activeWorker = null;
+      rejectConversion?.(new Error("CANCELLED"));
+      rejectConversion = null;
+      setBusy(false);
+      showMessage("処理を中止しました。", "Conversion cancelled.");
+    });
+    document.getElementById("save-source").addEventListener("click", () => {
+      if (!state.sourceInput) return;
+      const blob = state.sourceInput instanceof File ? state.sourceInput : new Blob([state.sourceInput], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "unreal-source.txt";
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
     for (const button of elements.languageButtons) {
       button.addEventListener("click", () => setLanguage(button.dataset.languageButton));
     }

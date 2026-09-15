@@ -52,7 +52,7 @@
           <article class="usage-step">
             <span class="step-number">01</span>
             <h3><span data-i18n-lang="ja">ノードをコピー</span><span data-i18n-lang="en">Copy nodes</span></h3>
-            <p><span data-i18n-lang="ja">Unreal EngineのBlueprint・Material・PCGで、変換したいノードを選択して<kbd>Ctrl + C</kbd>。種類は自動で判別します。</span><span data-i18n-lang="en">Select nodes in an Unreal Engine Blueprint, Material, or PCG graph and press <kbd>Ctrl + C</kbd>. The graph type is detected automatically.</span></p>
+            <p><span data-i18n-lang="ja">Blueprint・Material・PCGのノード、またはレベル上のActorを選択して<kbd>Ctrl + C</kbd>。種類は自動で判別します。</span><span data-i18n-lang="en">Select Blueprint, Material, or PCG nodes, or Actors in the level, and press <kbd>Ctrl + C</kbd>. The type is detected automatically.</span></p>
           </article>
           <article class="usage-step">
             <span class="step-number">02</span>
@@ -69,6 +69,11 @@
           <strong><span data-i18n-lang="ja">別のノードを続けて変換するには？</span><span data-i18n-lang="en">Want to convert another set?</span></strong>
           <span data-i18n-lang="ja">Unreal Engineで別のノードをコピーし、結果画面の同じ大きなボタンを押してください。画面を戻る必要はありません。</span>
           <span data-i18n-lang="en">Copy another set of nodes in Unreal Engine, then press the same large button on the result screen. No need to go back.</span>
+        </div>
+        <div class="guide-note">
+          <strong><span data-i18n-lang="ja">大きなActorデータはファイルでも</span><span data-i18n-lang="en">Use a file for large Actor data</span></strong>
+          <span data-i18n-lang="ja">コピー内容をUTF-8の .txt / .t3d に保存し、「テキストファイルから変換」で読み込めます。処理状況を表示し、中止もできます。コピーがブラウザに拒否された場合は、変換後のコピーボタンを押してください。</span>
+          <span data-i18n-lang="en">Save the copied text as a UTF-8 .txt / .t3d file and choose “Convert a text file.” Progress and cancellation are available. If the browser blocks automatic copying, use the copy button after conversion.</span>
         </div>
       </section>
 
@@ -130,6 +135,12 @@
           <article class="process-row"><span class="step-number">BP</span><div><h3>Blueprint</h3><p><span data-i18n-lang="ja">ノード・ピン・デフォルト値と、実行線・データ線を整理します。</span><span data-i18n-lang="en">Extracts nodes, pins, defaults, execution wires, and data wires.</span></p></div></article>
           <article class="process-row"><span class="step-number">MAT</span><div><h3>Material / Material Function</h3><p><span data-i18n-lang="ja">Expression、パラメータ、テクスチャ・関数の参照と接続を抽出。Named Rerouteの宣言先は、線とは別のreferencesに残します。</span><span data-i18n-lang="en">Extracts expressions, parameters, texture/function references, and wires. Named Reroute declarations are recorded in references, separately from pin wires.</span></p></div></article>
           <article class="process-row"><span class="step-number">PCG</span><div><h3>PCG</h3><p><span data-i18n-lang="ja">入出力・接続・Settings・ユーザーパラメータを抽出。内部のMesh Selector等も階層付きで残します。依存関係はdependencyとして区別します。</span><span data-i18n-lang="en">Extracts inputs, outputs, wires, settings, and user parameters. Nested components such as mesh selectors retain their hierarchy. Dependency-only wires are marked as dependency.</span></p></div></article>
+          <article class="process-row"><span class="step-number">ACT</span><div><h3>Actor / Level selection</h3><p><span data-i18n-lang="ja">Begin Map / Begin Actor形式を読み取り、Actor・Component・Objectの所有階層、設定値、Mesh・Material・PCGなどの参照を保持します。BlueprintやPCGグラフ内部の処理は含まれません。プリセットにかかわらずインスタンス配列は要約し、その他の配列は32件まで全件を保持します。</span><span data-i18n-lang="en">Reads Begin Map / Begin Actor text and preserves ownership hierarchy, properties, and mesh/material/PCG references. Blueprint and PCG implementation graphs are unavailable. Instance arrays are always summarized; other arrays retain all entries up to 32, independent of the node preset.</span></p></div></article>
+        </div>
+        <div class="guide-note">
+          <strong><span data-i18n-lang="ja">Actorの配列要約について</span><span data-i18n-lang="en">Reading Actor array summaries</span></strong>
+          <span data-i18n-lang="ja">件数は記録された行数です。examplesは先頭3件で、ランダムな代表値ではありません。スカラー値は最小・最大、Transformは保存されたWPlaneのXYZ範囲を集計し、ワールド座標とはみなしません。省略件数を明記し、全件は「元データ → 元データを保存」から取得できます。プレビューには長さ制限がありますが、コピー・JSON保存には変換結果の全文を含みます。</span>
+          <span data-i18n-lang="en">Counts measure serialized rows. Examples are the first 3 rows, not random representatives. Scalar values show min/max; transforms show stored WPlane XYZ ranges, not world-space bounds. Omitted counts are explicit. Use Source data → Save original data for all original rows. Preview length is limited; copy and JSON download include the entire converted result.</span>
         </div>
         <div class="guide-note">
           <strong><span data-i18n-lang="ja">コピー範囲の要約です</span><span data-i18n-lang="en">A summary of your selection</span></strong>
